@@ -1,11 +1,11 @@
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { ChatMessage } from "../types";
 
 // Initialize Gemini Client
-const apiKey = process.env.API_KEY || ''; // In a real app, ensure this is handled securely or via backend proxy
-const ai = new GoogleGenAI({ apiKey });
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
+const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
 
-const MODEL_NAME = "gemini-2.5-flash";
+const MODEL_NAME = "gemini-1.5-flash";
 
 const SYSTEM_INSTRUCTION = `
 You are CYBER-BOT, an advanced AI assistant for a Senior Web Developer's portfolio website.
@@ -27,35 +27,45 @@ export const sendMessageToGemini = async (
   history: ChatMessage[],
   newMessage: string
 ): Promise<string> => {
-  if (!apiKey) {
-    return "Error: API_KEY is missing in the environment variables.";
+  if (!apiKey || !genAI) {
+    return "⚠️ API Key not configured. Please set VITE_GEMINI_API_KEY in your .env file.";
   }
 
   try {
-    // Construct the prompt with history for context window (simplified for this demo)
-    // Ideally, use chat.sendMessageStream for full history management
-    const conversationHistory = history.map(msg => 
-      `${msg.role === 'user' ? 'User' : 'Model'}: ${msg.text}`
-    ).join('\n');
-
-    const prompt = `
-      ${SYSTEM_INSTRUCTION}
-      
-      Current Conversation:
-      ${conversationHistory}
-      
-      User: ${newMessage}
-      Model:
-    `;
-
-    const response: GenerateContentResponse = await ai.models.generateContent({
+    const model = genAI.getGenerativeModel({ 
       model: MODEL_NAME,
-      contents: prompt,
+      systemInstruction: SYSTEM_INSTRUCTION,
     });
 
-    return response.text || "System malfunction. Please try again.";
-  } catch (error) {
+    // Build conversation history
+    const conversationHistory = history
+      .filter(msg => msg.role === 'user' || msg.role === 'model')
+      .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.text}`)
+      .join('\n');
+
+    const prompt = conversationHistory 
+      ? `${conversationHistory}\n\nUser: ${newMessage}\nAssistant:`
+      : `User: ${newMessage}\nAssistant:`;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+
+    return text || "System malfunction. Please try again.";
+  } catch (error: any) {
     console.error("Gemini API Error:", error);
-    return "Connection interrupted. Neural link unstable.";
+    
+    // Provide more specific error messages
+    if (error.message?.includes('API key')) {
+      return "🔑 Invalid API Key. Please check your Gemini API configuration.";
+    }
+    if (error.message?.includes('quota')) {
+      return "⏳ API quota exceeded. Please try again later.";
+    }
+    if (error.message?.includes('SAFETY')) {
+      return "🛡️ Response blocked by safety filters. Please rephrase your question.";
+    }
+    
+    return "⚡ Connection interrupted. Neural link unstable. Please try again.";
   }
 };

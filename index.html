@@ -36,6 +36,7 @@
               'float': 'float 6s ease-in-out infinite',
               'glow-pulse': 'glowPulse 3s infinite',
               'spin-slow': 'spin 12s linear infinite',
+              'scan': 'scan 3s linear infinite',
             },
             keyframes: {
               float: {
@@ -45,6 +46,10 @@
               glowPulse: {
                 '0%, 100%': { opacity: 1 },
                 '50%': { opacity: 0.6 },
+              },
+              scan: {
+                '0%': { transform: 'translateY(-100%)' },
+                '100%': { transform: 'translateY(100%)' },
               }
             }
           },
